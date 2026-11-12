@@ -1,26 +1,154 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Same palette as the html-communication template documents are written in. */
+@theme {
+  --color-bg: #0b0b0c;
+  --color-panel: #121214;
+  --color-panel-2: #18181b;
+  --color-line: #232327;
+  --color-line-2: #2e2e33;
+  --color-ink: #ededee;
+  --color-read: #b9b9be;
+  --color-dim: #85858c;
+  --color-faint: #5a5a61;
+  --color-calm: #8fd4b6;
+  --color-calm-bg: rgb(143 212 182 / 0.09);
+  --color-warn: #e8c27a;
+  --color-warn-bg: rgb(232 194 122 / 0.09);
+  --color-no: #e89a9a;
+  --color-no-bg: rgb(232 154 154 / 0.09);
 }
 
+/* next/font sets these variables on <html>, so they must resolve at runtime. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-figtree), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-read);
+    font: 16px/1.6 var(--font-sans);
+    overflow-x: hidden;
+  }
+  h1,
+  h2,
+  h3 {
+    color: var(--color-ink);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+  }
+  a {
+    color: var(--color-ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-calm);
+    outline-offset: 2px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: 500 0.72rem/1 var(--font-mono);
+    letter-spacing: 0.03em;
+    padding: 5px 8px;
+    border-radius: 99px;
+    white-space: nowrap;
+  }
+  .pill::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .pill-live {
+    color: var(--color-calm);
+    background: var(--color-calm-bg);
+  }
+  .pill-done {
+    color: var(--color-dim);
+    background: var(--color-panel-2);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font: 500 0.75rem/1 var(--font-mono);
+    color: var(--color-read);
+    background: var(--color-panel-2);
+    border: 1px solid var(--color-line-2);
+    border-radius: 8px;
+    padding: 8px 12px;
+    min-height: 36px;
+    white-space: nowrap;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .btn:hover {
+    color: var(--color-ink);
+    border-color: var(--color-faint);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .btn-primary {
+    color: var(--color-bg);
+    background: var(--color-calm);
+    border-color: var(--color-calm);
+  }
+  .btn-primary:hover {
+    color: var(--color-bg);
+    border-color: var(--color-ink);
+  }
+  .btn-danger {
+    color: var(--color-no);
+  }
+  .btn-danger:hover {
+    color: var(--color-no);
+    border-color: var(--color-no);
+  }
+
+  .field {
+    width: 100%;
+    min-width: 0;
+    min-height: 40px;
+    padding: 8px 12px;
+    font: inherit;
+    font-size: 0.95rem;
+    color: var(--color-ink);
+    background: var(--color-panel);
+    border: 1px solid var(--color-line-2);
+    border-radius: 10px;
+  }
+  .field::placeholder {
+    color: var(--color-faint);
+  }
+  .field:focus {
+    border-color: var(--color-faint);
+    outline: none;
+  }
+  .field:focus-visible {
+    outline: 2px solid var(--color-calm);
+    outline-offset: 1px;
+  }
+
+  .label {
+    font: 500 0.74rem var(--font-mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-faint);
+  }
 }
