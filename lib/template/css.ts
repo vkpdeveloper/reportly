@@ -60,7 +60,7 @@ nav.side a:focus-visible{outline:2px solid var(--calm);outline-offset:-2px}
 
 /* Cards */
 .cards{display:grid;gap:10px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;min-width:0}
 .card .top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:4px}
 .card h3{margin:0}
 .card p{margin:0;font-size:.95rem}
@@ -104,7 +104,7 @@ main section > video{margin:8px 0 18px}
 
 /* Phases and questions */
 .phases{display:grid;gap:10px}
-.phase{display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+.phase{display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;min-width:0}
 .phase .num{font:500 .8rem var(--mono);color:var(--calm);padding-top:3px}
 .phase ul{margin:8px 0 0;padding-left:18px}
 .phase li{margin:3px 0;font-size:.95rem}
@@ -165,6 +165,6 @@ footer{margin-top:72px;padding-top:20px;border-top:1px solid var(--line);font-si
 @media (max-width:520px){
   body{font-size:16px}
   .card .top{flex-direction:column;gap:8px}
-  .phase{grid-template-columns:1fr;gap:4px}
+  .phase{grid-template-columns:minmax(0,1fr);gap:4px}
 }
 `;
