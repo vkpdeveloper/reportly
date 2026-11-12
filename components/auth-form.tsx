@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import type { AuthState } from "@/app/(auth)/actions";
+import { Logo } from "@/components/logo";
 
 type Props = {
   mode: "login" | "register";
@@ -15,8 +16,8 @@ export function AuthForm({ mode, action }: Props) {
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-4 py-16">
-      <Link href="/" className="mb-10 font-bold text-ink no-underline">
-        Reportly
+      <Link href="/" className="mb-10 self-start no-underline">
+        <Logo />
       </Link>
       <h1 className="mb-6 text-2xl">{isLogin ? "Log in" : "Create an account"}</h1>
       <form action={formAction} className="grid gap-4">

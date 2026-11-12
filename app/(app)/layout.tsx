@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo } from "@/components/logo";
 import { NavLink } from "@/components/nav-link";
 import { requireUser } from "@/lib/auth";
 import { logout } from "./actions";
@@ -10,8 +11,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     <>
       <header className="border-b border-line">
         <div className="mx-auto flex max-w-5xl items-center gap-2 px-4 py-3 sm:gap-4">
-          <Link href="/docs" className="mr-1 font-bold text-ink no-underline sm:mr-2">
-            Reportly
+          <Link href="/docs" className="mr-1 no-underline sm:mr-2">
+            <Logo />
           </Link>
           <nav className="flex gap-1">
             <NavLink href="/docs">Documents</NavLink>
