@@ -207,10 +207,12 @@ export const widgetsJs = String.raw`
       btn.textContent = text;
       setTimeout(function () { btn.textContent = old; }, 1400);
     };
-    // The page runs in a sandboxed (opaque) origin where the async clipboard
-    // can be missing or refused, so fall back to a hidden textarea.
+    // The page runs in a sandboxed (opaque) origin where the async clipboard can
+    // be missing, refused, or left pending on a permission prompt, so copy through
+    // a hidden textarea first (synchronous, inside the click) and use the async
+    // clipboard only when that fails.
     var copyText = function (text) {
-      var fallback = function () {
+      var viaTextarea = function () {
         var active = document.activeElement;
         var ta = document.createElement("textarea");
         ta.value = text;
@@ -226,12 +228,13 @@ export const widgetsJs = String.raw`
         try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
         ta.remove();
         if (active && active.focus) active.focus({ preventScroll: true });
-        return ok ? Promise.resolve() : Promise.reject(new Error("copy failed"));
+        return ok;
       };
+      if (viaTextarea()) return Promise.resolve();
       try {
-        if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).catch(fallback);
+        if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
       } catch (e) {}
-      return fallback();
+      return Promise.reject(new Error("copy failed"));
     };
     var patchText = function (box) {
       return Array.prototype.map.call(box.querySelectorAll("pre.diff .l"), function (l) { return l.textContent; }).join("\n") + "\n";
