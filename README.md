@@ -1,3 +1,5 @@
+<img src="app/icon.svg" width="64" height="64" alt="Reportly logo">
+
 # Reportly
 
 Live reports for coding agents.
