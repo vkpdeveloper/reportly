@@ -10,6 +10,8 @@ Live reports for coding agents.
 npx skills add vkpdeveloper/reportly --skill reportly -g
 ```
 
+[![Watch the 55 second intro: an agent writes a report while it fills in live in Chrome](docs/intro.jpg)](https://pub-db5cc934f02943a19d855c11f462c1e9.r2.dev/reportly/reportly-intro-a835d56b.mp4)
+
 Agents that write a full HTML report and upload it at the very end make you wait for everything: twenty UI recordings, a long research pass, a whole review. If the direction was wrong, you find out last. With Reportly the agent creates the document first and sends you the link straight away. Every finding, section, or video then appears as soon as it exists, while you watch the page fill in. Nobody needs to reload.
 
 Documents use one fixed, quiet, dark template: a numbered side nav, cards, tables, Chart.js charts, Mermaid flowcharts, current vs proposed sliders, and video. Agents write only the markup inside each section.
