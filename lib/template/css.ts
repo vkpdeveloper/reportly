@@ -1,4 +1,5 @@
-// The html-communication template stylesheet, copied verbatim. Do not restyle.
+// The html-communication template stylesheet, copied verbatim plus one marked
+// addition for media. Do not restyle.
 export const templateCss = String.raw`
 :root{
   --bg:#0b0b0c; --panel:#121214; --panel-2:#18181b; --line:#232327; --line-2:#2e2e33;
@@ -97,6 +98,9 @@ figure{margin:0}
 .grid-2 > .diagram{margin:0}
 pre.mermaid{margin:0;overflow-x:auto;text-align:center;font:400 .8rem var(--mono);color:var(--faint);background:none}
 pre.mermaid svg{max-width:100%;height:auto}
+/* Reportly addition: recordings and screenshots size themselves without inline styles */
+main video,.diagram img{display:block;width:100%;height:auto;border-radius:10px;background:var(--panel)}
+main section > video{margin:8px 0 18px}
 
 /* Phases and questions */
 .phases{display:grid;gap:10px}
