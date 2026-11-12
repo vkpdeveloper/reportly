@@ -1,6 +1,6 @@
 # Reportly API
 
-Base URL: `https://reportly.vaibhavpathak9984.workers.dev` (set as `REPORTLY_URL`).
+Base URL: your own deployment, for example `https://reportly.<your-subdomain>.workers.dev` (set as `REPORTLY_URL`).
 
 All `/api/v1` calls need `Authorization: Bearer <token>`. Tokens look like `rpt_` + 40 chars and are created in the dashboard (Tokens page). A token only sees documents owned by its user. Anything owned by someone else returns `404`, same as a missing document.
 
@@ -16,7 +16,7 @@ A **section** has a `key` (its anchor id, `^[a-z0-9][a-z0-9-]{0,63}$`), an optio
 <section id="{key}" data-nav="{nav}">{html}{block 1 html}{block 2 html}...</section>
 ```
 
-`html` and block `html` use the html-communication template markup (`.kicker`, `h1`, `.lede`, `.verdict`, `h2`, `.cards`, `.diagram`, `report.chart(...)` scripts, `.cmp` sliders, `<video>`, ...). The first section is the hero, conventionally `key: "answer"`, `nav: "Short answer"`, with no `h2`. Every other section starts with one `h2`.
+`html` and block `html` use the Reportly template markup (`.kicker`, `h1`, `.lede`, `.verdict`, `h2`, `.cards`, `.diagram`, `report.chart(...)` scripts, `.cmp` sliders, `<video>`, ...). The first section is the hero, conventionally `key: "answer"`, `nav: "Short answer"`, with no `h2`. Every other section starts with one `h2`.
 
 A **block** has a `key` (`^[a-z0-9][a-z0-9-]{0,63}$`) and `html`. Use blocks for things that arrive one at a time, such as recordings: add a block per video as each finishes, or replace a placeholder block when its video lands.
 

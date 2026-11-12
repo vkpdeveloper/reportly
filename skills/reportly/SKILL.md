@@ -43,7 +43,7 @@ where `<skill-root>` is the directory containing this SKILL.md.
 
 Readers never need to reload. Do not tell them to.
 
-`--project` is the repo or product name in kebab-case (e.g. `medzimi`). The title is the document title and also names the id. The id never changes, even if you rename the document.
+`--project` is the repo or product name in kebab-case (e.g. `medzimi`). If the repo's `AGENTS.md` or `CLAUDE.md` names a Reportly project (e.g. `Reportly project: checkout-web`), use that instead. The title is the document title and also names the id. The id never changes, even if you rename the document.
 
 ## Document model
 

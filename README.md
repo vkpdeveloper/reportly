@@ -4,6 +4,12 @@
 
 Live reports for coding agents.
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/vkpdeveloper/reportly)
+
+```sh
+npx skills add vkpdeveloper/reportly --skill reportly -g
+```
+
 Agents that write a full HTML report and upload it at the very end make you wait for everything: twenty UI recordings, a long research pass, a whole review. If the direction was wrong, you find out last. With Reportly the agent creates the document first and sends you the link straight away. Every finding, section, or video then appears as soon as it exists, while you watch the page fill in. Nobody needs to reload.
 
 Documents use one fixed, quiet, dark template: a numbered side nav, cards, tables, Chart.js charts, Mermaid flowcharts, current vs proposed sliders, and video. Agents write only the markup inside each section.
@@ -22,21 +28,65 @@ flowchart LR
 - Each write bumps the document version. Open viewers poll `/api/live/:id?since=<version>`, fetch only the sections that changed, and patch them in place (a video that is playing keeps playing). Polling pauses while the tab is hidden and stops when the document is `done`.
 - Media is not stored in Reportly. Agents upload images and videos to R2 or any public host and reference the urls.
 
+## Get started
+
+Reportly is self-hosted: every person or team runs their own copy on their own Cloudflare account. There is no shared server.
+
+### 1. Deploy your own copy
+
+Click **Deploy to Cloudflare** above. Cloudflare then:
+
+1. copies this repo into your GitHub or GitLab account
+2. creates a D1 database for it
+3. builds the app and applies the database migrations
+4. deploys the Worker
+
+You can rename the Worker and the database on the setup page. Every later push to your copy redeploys it, and new migrations are applied on each deploy.
+
+When it finishes, your server lives at `https://<worker-name>.<your-subdomain>.workers.dev`. You can add a custom domain in the Cloudflare dashboard.
+
+### 2. Create an account and a token
+
+Open your server, register, go to **Tokens**, and create one. It is shown only once.
+
+### 3. Install the skill
+
+On every machine that runs agents:
+
+```sh
+npx skills add vkpdeveloper/reportly --skill reportly -g
+```
+
+This installs the skill globally for every agent it detects. Add `-a claude-code` (or another agent name) to pick specific agents. Use `npx skills update reportly` to update it later.
+
+### 4. Point the skill at your server
+
+The skill reads two environment variables. Put them in each machine's shell profile, for example `~/.zshrc`:
+
+```sh
+export REPORTLY_URL="https://reportly.<your-subdomain>.workers.dev"   # your server, no trailing slash
+export REPORTLY_TOKEN="rpt_..."                                       # from step 2
+```
+
+Never commit the token. Agents stop and ask for whichever variable is missing.
+
+## Your configuration
+
+Everything below belongs to your copy. The only value committed here is the original `database_id`, and the Deploy button replaces it with yours.
+
+| Setting | Where it lives | Set by |
+|---|---|---|
+| Worker name and URL | `name` in `wrangler.jsonc` | Deploy setup page, or edit it yourself |
+| D1 database | `d1_databases[0]` in `wrangler.jsonc` (binding must stay `DB`) | Created by the Deploy button, or `wrangler d1 create` |
+| Server address for agents | `REPORTLY_URL` on each machine | You |
+| API token | `REPORTLY_TOKEN` on each machine | You, from the Tokens page |
+| Project name | `--project` on each `reportly create` | The agent, from the repo or product name |
+| Media hosting | Any public host, such as your own R2 bucket | You |
+
+- **Project names:** each document has a project, and the dashboard search filters by it. The skill tells agents to use the repo or product name in kebab-case (for example `medzimi`), so reports from one repo stay together. To pin a different name for a repo, say so in that repo's `AGENTS.md` or `CLAUDE.md`, for example `Reportly project: checkout-web`.
+- **Registration is open:** anyone who finds your server can sign up. Accounts only ever see their own documents.
+
 ## Use it from an agent
-
-1. Sign up on your Reportly server, open **Tokens**, and create a token.
-2. Set two environment variables on every machine that runs agents:
-
-   ```sh
-   export REPORTLY_URL="https://reportly.vaibhavpathak9984.workers.dev"
-   export REPORTLY_TOKEN="rpt_..."
-   ```
-
-3. Install the skill by copying or symlinking `skills/reportly` into your agent's skills directory:
-
-   ```sh
-   ln -s "$PWD/skills/reportly" ~/.claude/skills/reportly   # or ~/.agents/skills/reportly
-   ```
 
 The skill tells the agent when to make a report, how to write each section, and how to push work as it goes. It ships a zero-dependency CLI (Node 18+ or Bun) that reads html from files, so nobody has to escape HTML into JSON by hand:
 
@@ -75,16 +125,17 @@ The full contract is in [docs/api.md](docs/api.md).
 - Passwords are hashed with PBKDF2-SHA-256 and a per-user salt.
 - A token only sees its own user's documents. Anything else returns 404.
 
-## Self-host on Cloudflare
+## Deploy by hand
 
-Reportly runs on Next.js 16 on Cloudflare Workers (through OpenNext) with a D1 database, so it costs nothing beyond the Workers paid plan.
+Reportly runs on Next.js 16 on Cloudflare Workers (through OpenNext) with a D1 database, so it costs nothing beyond the Workers paid plan. Use this instead of the button if you want to deploy from your own machine:
 
 ```sh
 bun install
-bunx wrangler d1 create reportly   # copy the printed database_id into wrangler.jsonc
-bun run db:migrate                 # apply migrations to the remote database
-bun run deploy                     # build and deploy the Worker
+bunx wrangler d1 create reportly   # put the printed database_id in wrangler.jsonc, replacing the existing one
+bun run deploy                     # build, apply migrations, deploy the Worker
 ```
+
+The `database_id` committed here belongs to the original deployment. Your account cannot use it, so replace it with your own.
 
 Local development:
 
