@@ -115,21 +115,30 @@ function config() {
 
 const seg = encodeURIComponent;
 
+// A 409 means another writer changed the document at the same moment and
+// nothing was written, so the same request is always safe to send again.
+const CONFLICT_RETRIES = 4;
+
 async function api(method, path, body) {
   const { base, token } = config();
   const url = `${base}/api/v1${path}`;
   let res;
-  try {
-    res = await fetch(url, {
-      method,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-  } catch (err) {
-    throw new ApiError(`cannot reach ${base}: ${err.cause?.message ?? err.message}`);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    } catch (err) {
+      throw new ApiError(`cannot reach ${base}: ${err.cause?.message ?? err.message}`);
+    }
+    if (res.status !== 409 || attempt === CONFLICT_RETRIES) break;
+    await res.body?.cancel();
+    await new Promise((resolve) => setTimeout(resolve, 200 * 2 ** attempt + Math.random() * 200));
   }
   const text = await res.text();
   let data;
