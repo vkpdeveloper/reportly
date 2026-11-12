@@ -1,6 +1,6 @@
 # Reportly API
 
-Base URL: `https://reportly.<account>.workers.dev` (set as `REPORTLY_URL`).
+Base URL: `https://reportly.vaibhavpathak9984.workers.dev` (set as `REPORTLY_URL`).
 
 All `/api/v1` calls need `Authorization: Bearer <token>`. Tokens look like `rpt_` + 40 chars and are created in the dashboard (Tokens page). A token only sees documents owned by its user. Anything owned by someone else returns `404`, same as a missing document.
 

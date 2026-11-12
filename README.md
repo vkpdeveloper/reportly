@@ -26,7 +26,7 @@ flowchart LR
 2. Set two environment variables on every machine that runs agents:
 
    ```sh
-   export REPORTLY_URL="https://reportly.<your-subdomain>.workers.dev"
+   export REPORTLY_URL="https://reportly.vaibhavpathak9984.workers.dev"
    export REPORTLY_TOKEN="rpt_..."
    ```
 
