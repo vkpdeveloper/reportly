@@ -4,7 +4,7 @@ Base URL: `https://reportly.<account>.workers.dev` (set as `REPORTLY_URL`).
 
 All `/api/v1` calls need `Authorization: Bearer <token>`. Tokens look like `rpt_` + 40 chars and are created in the dashboard (Tokens page). A token only sees documents owned by its user. Anything owned by someone else returns `404`, same as a missing document.
 
-Responses are JSON. Errors: `{"error": "<message>"}` with status 400 (bad input), 401 (missing or bad token), 404, 413 (too large). Every response has `Cache-Control: no-store`.
+Responses are JSON. Errors: `{"error": "<message>"}` with status 400 (bad input, including unknown fields or an unknown section or block), 401 (missing or bad token), 404 (document missing or not yours), 409 (another writer changed the document at the same moment; nothing was written, retry), 413 (too large). Every response has `Cache-Control: no-store`.
 
 ## Model
 
