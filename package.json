@@ -4,14 +4,21 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts >/dev/null && next build",
     "lint": "eslint",
     "typecheck": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts >/dev/null && tsc --noEmit",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "db:migrate:local": "wrangler d1 migrations apply reportly --local",
-    "db:migrate": "wrangler d1 migrations apply reportly --remote"
+    "deploy": "opennextjs-cloudflare build && wrangler d1 migrations apply DB --remote && opennextjs-cloudflare deploy",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate": "wrangler d1 migrations apply DB --remote"
+  },
+  "cloudflare": {
+    "bindings": {
+      "DB": {
+        "description": "D1 database for accounts, tokens and documents. A new one is created for you, and migrations run on every deploy."
+      }
+    }
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.17",
