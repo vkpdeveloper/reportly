@@ -2,7 +2,7 @@ const BASE36 = "0123456789abcdefghijklmnopqrstuvwxyz";
 const BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
 // Rejection sampling keeps every character uniformly random.
-function randomString(length: number, alphabet: string) {
+export function randomString(length: number, alphabet = BASE36) {
   const limit = 256 - (256 % alphabet.length);
   let out = "";
   while (out.length < length) {

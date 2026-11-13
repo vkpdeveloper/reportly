@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { endSession, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { newApiToken, newId, sha256Hex } from "@/lib/ids";
+import { deleteDocumentWithMedia } from "@/lib/media";
 
 export async function logout() {
   await endSession();
@@ -17,8 +18,7 @@ export async function logout() {
 export async function deleteDocument(formData: FormData) {
   const user = await requireUser();
   const id = String(formData.get("id") ?? "");
-  // sections and blocks go with it through ON DELETE CASCADE.
-  await db().prepare("DELETE FROM documents WHERE id = ? AND user_id = ?").bind(id, user.id).run();
+  await deleteDocumentWithMedia(id, user.id);
   refresh();
 }
 

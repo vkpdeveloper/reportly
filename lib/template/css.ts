@@ -1,5 +1,6 @@
-// The html-communication template stylesheet, copied verbatim plus one marked
-// addition for media. Do not restyle.
+// The html-communication template stylesheet, copied verbatim plus marked
+// Reportly additions (media, live status, new blocks, comments, print).
+// Do not restyle the template parts.
 export const templateCss = String.raw`
 :root{
   --bg:#0b0b0c; --panel:#121214; --panel-2:#18181b; --line:#232327; --line-2:#2e2e33;
@@ -143,6 +144,132 @@ pre.diff .l{display:block;padding:0 14px;white-space:pre}
 .l.ctx{color:var(--read)}
 .hex{font:500 .8em var(--mono);padding:.1em .45em;border-radius:5px;border:1px solid var(--line-2);white-space:nowrap}
 
+/* Reportly addition: live status chip and nav markers */
+nav.side .status{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 8px;margin:-14px 0 22px;padding:0 10px}
+nav.side .status .state{display:flex;align-items:center;gap:8px;font:500 .74rem/1.3 var(--mono);letter-spacing:.03em;color:var(--read);white-space:nowrap}
+nav.side .status .state::before{content:"";flex:none;width:7px;height:7px;border-radius:50%;background:var(--calm)}
+nav.side .status[data-status="done"] .state::before{background:var(--dim)}
+nav.side .status .when{grid-column:1 / -1;font-size:.8rem;color:var(--faint)}
+nav.side .status .when:empty{display:none}
+nav.side .status .pdf{min-height:26px;padding:6px 8px;font-size:.7rem}
+nav.side ol a.pending{color:var(--faint)}
+nav.side ol a.fresh span:last-child::after{content:"";display:inline-block;width:6px;height:6px;margin-left:8px;border-radius:50%;background:var(--calm);vertical-align:.1em}
+main > section[id]:empty::before{content:attr(id);display:block;font:650 1.55rem/1.2 var(--sans);letter-spacing:-.015em;color:var(--faint)}
+main > section[id][data-nav]:empty::before{content:attr(data-nav)}
+main > section[id]:empty::after{content:"Pending";display:inline-block;margin-top:12px;font:500 .72rem/1 var(--mono);letter-spacing:.03em;padding:5px 8px;border-radius:99px;color:var(--dim);background:var(--panel-2)}
+
+/* Reportly addition: checklist (one .check per item, usually one block each) */
+.check{display:flex;align-items:flex-start;gap:12px;background:var(--panel);border:1px solid var(--line);border-top-width:0;padding:12px 16px;min-width:0}
+:not(.check) + .check{border-top-width:1px;border-radius:14px 14px 0 0;margin-top:8px}
+.check:not(:has(+ .check)){border-radius:0 0 14px 14px;margin-bottom:18px}
+:not(.check) + .check:not(:has(+ .check)){border-radius:14px}
+.check::before{content:"";flex:none;display:grid;place-items:center;width:18px;height:18px;margin-top:2px;border-radius:50%;border:1.5px solid var(--faint);font:700 11px/1 var(--sans)}
+.check[data-state="doing"]::before{border-color:var(--warn);background:radial-gradient(circle,var(--warn) 0 3.5px,transparent 4px)}
+.check[data-state="done"]::before{content:"\2713";border-color:var(--calm);background:var(--calm);color:var(--bg)}
+.check[data-state="blocked"]::before{content:"\2715";border-color:var(--no);color:var(--no)}
+.check > div{flex:1;min-width:0}
+.check strong{display:block;font-weight:500;color:var(--ink)}
+.check[data-state="done"] strong{color:var(--read)}
+.check div > span{display:block;font-size:.88rem;color:var(--dim);margin-top:2px}
+
+/* Reportly addition: activity log (one .log per entry) */
+.log{display:grid;grid-template-columns:64px 14px minmax(0,1fr);gap:0 10px;align-items:baseline;padding:4px 0;font-size:.94rem;background:linear-gradient(var(--line-2),var(--line-2)) no-repeat 81px 0 / 1px 100%}
+:not(.log) + .log{margin-top:8px}
+.log:not(:has(+ .log)){margin-bottom:18px}
+.log time{grid-column:1;white-space:nowrap;grid-row:1;font:500 .74rem var(--mono);font-variant-numeric:tabular-nums;color:var(--faint)}
+.log::before{content:"";grid-column:2;grid-row:1;justify-self:center;align-self:center;width:7px;height:7px;border-radius:50%;background:var(--faint);box-shadow:0 0 0 3px var(--bg)}
+.log[data-state="ok"]::before{background:var(--calm)}
+.log[data-state="mid"]::before{background:var(--warn)}
+.log[data-state="no"]::before{background:var(--no)}
+.log > span{grid-column:3;grid-row:1;min-width:0}
+
+/* Reportly addition: test results */
+.tests .sum{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.pill.skip{color:var(--dim);background:var(--panel-2)}
+.tests .grid{display:flex;flex-wrap:wrap;gap:3px}
+.tests .grid i{width:12px;height:12px;border-radius:3px;background:var(--calm)}
+.tests .grid i.fail{background:var(--no)}
+.tests .grid i.skip{background:var(--line-2)}
+.tests details{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.tests summary{cursor:pointer;color:var(--ink);font-size:.92rem;overflow-wrap:anywhere}
+.tests details pre{margin:8px 0 0;padding:10px 12px;max-height:280px;overflow:auto;font:400 .8rem/1.55 var(--mono);color:var(--no);white-space:pre-wrap;word-break:break-word;background:var(--bg);border:1px solid var(--line);border-radius:10px}
+
+/* Reportly addition: gallery, lightbox, tabs */
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin:8px 0 18px}
+.gallery figure{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px;min-width:0}
+.gallery img{display:block;width:100%;height:auto;border-radius:8px}
+.gallery figcaption{font-size:.84rem;color:var(--dim);padding:8px 4px 2px}
+img.zoomable{cursor:zoom-in}
+dialog.lightbox{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;background:rgba(5,5,6,.95);color:var(--ink)}
+dialog.lightbox::backdrop{background:rgba(5,5,6,.95)}
+.lightbox .stage{position:absolute;inset:56px 64px 64px;display:grid;place-items:center;overflow:auto}
+.lightbox .stage img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;cursor:zoom-in}
+.lightbox.full .stage{display:block}
+.lightbox.full .stage img{display:block;max-width:none;max-height:none;margin:0 auto;cursor:zoom-out}
+.lightbox .lb-cap{position:absolute;left:16px;right:16px;bottom:18px;margin:0;text-align:center;font-size:.9rem;color:var(--read)}
+.lightbox .lb-close{position:absolute;top:12px;right:16px}
+.lightbox .lb-prev,.lightbox .lb-next{position:absolute;top:50%;width:40px;height:40px;margin-top:-20px;font-size:1.2rem}
+.lightbox .lb-prev{left:12px}
+.lightbox .lb-next{right:12px}
+.lightbox.single .lb-prev,.lightbox.single .lb-next{display:none}
+.tabs{margin:8px 0 18px;min-width:0}
+.tablist{display:flex;gap:4px;margin-bottom:14px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--line)}
+.tablist button{margin-bottom:-1px;padding:8px 12px;font:500 .88rem var(--sans);white-space:nowrap;color:var(--dim);background:none;border:0;border-bottom:2px solid transparent;cursor:pointer}
+.tablist button:hover{color:var(--ink)}
+.tablist button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--calm)}
+.tablist button:focus-visible{outline:2px solid var(--calm);outline-offset:-2px;border-radius:6px}
+.tabs > [data-tab][hidden]{display:none}
+
+/* Reportly addition: code excerpts, terminal output, captioned tables */
+.code,.term{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin:8px 0 18px;overflow:hidden;min-width:0}
+.code .head,.term .head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 8px 8px 14px;border-bottom:1px solid var(--line);font:500 .82rem var(--mono);color:var(--read)}
+.code .head span,.term .head span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.code pre,.term pre{margin:0;max-height:520px;overflow:auto;font:400 .82rem/1.6 var(--mono);color:var(--read)}
+.code pre{padding:10px 0}
+.code .l{display:inline-block;min-width:100%;padding-right:14px;white-space:pre}
+.code .l::before{content:attr(data-n);display:inline-block;width:4.2em;padding-right:1.2em;text-align:right;color:var(--faint);user-select:none}
+.code .l.mark{background:var(--warn-bg)}
+.term pre{padding:12px 14px;white-space:pre;background:var(--bg)}
+.term .c-ok{color:var(--calm)}
+.term .c-mid{color:var(--warn)}
+.term .c-no{color:var(--no)}
+.term .c-ink{color:var(--ink)}
+.term .c-dim{color:var(--faint)}
+.term b{font-weight:600}
+figure.table{margin:8px 0 18px}
+figure.table figcaption{margin:0 0 10px}
+figure.table figcaption strong{display:block;font-size:1rem;line-height:1.35}
+figure.table figcaption span{display:block;font-size:.84rem;color:var(--dim);margin-top:2px}
+
+/* Reportly addition: comments */
+.cmt{display:inline-flex;align-items:center;gap:4px;vertical-align:middle;margin-left:8px;padding:3px 6px;font:500 .72rem/1 var(--mono);letter-spacing:0;color:var(--faint);background:none;border:1px solid transparent;border-radius:7px;cursor:pointer;opacity:0;transition:opacity .12s}
+.cmt[data-count]{opacity:1;color:var(--dim)}
+.cmt[data-count]::after{content:attr(data-count)}
+:is(h1,h2,[data-item],.top):hover > .cmt,.cmt:focus-visible{opacity:1}
+.cmt:hover{color:var(--ink);background:var(--panel-2);border-color:var(--line-2)}
+.cmt:focus-visible{outline:2px solid var(--calm);outline-offset:1px}
+@media (hover:none){.cmt{opacity:.75}}
+[data-item]{position:relative}
+[data-item] > .cmt{position:absolute;top:8px;right:8px;margin:0}
+.check > .cmt{position:static;align-self:center;margin:0 0 0 auto}
+.card .top:has(> .cmt){justify-content:flex-start}
+.card .top:has(> .cmt) > h3{margin-right:auto}
+.card .top > .cmt{margin:0}
+.cmt-pop{position:absolute;z-index:20;width:min(360px,calc(100vw - 32px));padding:12px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 18px 48px rgba(0,0,0,.5)}
+.cmt-pop[hidden],.cmt-list[hidden]{display:none}
+.cmt-list{display:grid;gap:12px;max-height:280px;overflow-y:auto;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.cmt-list .c.agent{border-left:2px solid var(--calm);padding-left:10px}
+.cmt-list .who{display:flex;gap:8px;align-items:baseline}
+.cmt-list .who b{font-size:.86rem;font-weight:600;color:var(--ink)}
+.cmt-list time{font:500 .7rem var(--mono);color:var(--faint)}
+.cmt-list p{margin:2px 0 0;font-size:.9rem;color:var(--read);white-space:pre-wrap;overflow-wrap:anywhere}
+.cmt-form textarea,.cmt-form input{width:100%;padding:8px 10px;font:inherit;font-size:.92rem;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:9px}
+.cmt-form textarea{display:block;min-height:72px;resize:vertical}
+.cmt-form textarea:focus-visible,.cmt-form input:focus-visible{outline:2px solid var(--calm);outline-offset:1px}
+.cmt-form .row{display:flex;gap:8px;margin-top:8px}
+.cmt-form .row input{flex:1;min-width:0}
+.cmt-err{margin:8px 0 0;font-size:.84rem;color:var(--no)}
+
 footer{margin-top:72px;padding-top:20px;border-top:1px solid var(--line);font-size:.85rem;color:var(--faint)}
 
 @media (max-width:900px){
@@ -152,12 +279,18 @@ footer{margin-top:72px;padding-top:20px;border-top:1px solid var(--line);font-si
   nav.side ol{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain}
   nav.side ol::-webkit-scrollbar{display:none}
   nav.side ol a{display:flex;gap:8px;white-space:nowrap;padding:8px 10px}
+  nav.side{display:flex;align-items:center;gap:8px}
+  nav.side ol{flex:1;min-width:0}
+  nav.side .status{order:2;display:flex;flex:none;margin:0;padding:0 2px 0 12px;border-left:1px solid var(--line)}
+  nav.side .status .when,nav.side .status .pdf{display:none}
   main{padding-top:36px}
   section{padding-top:56px;scroll-margin-top:64px}
   .verdict{grid-template-columns:1fr}
 }
 @media (max-width:720px){
   .grid-2{grid-template-columns:1fr}
+  .lightbox .stage{inset:56px 8px 64px}
+  .lightbox .lb-prev,.lightbox .lb-next{top:auto;bottom:10px;margin:0}
   .diagram{padding:16px}
   .chart{height:260px}
   .chart.tall{height:340px}
@@ -166,5 +299,23 @@ footer{margin-top:72px;padding-top:20px;border-top:1px solid var(--line);font-si
   body{font-size:16px}
   .card .top{flex-direction:column;gap:8px}
   .phase{grid-template-columns:minmax(0,1fr);gap:4px}
+}
+
+/* Reportly addition: Save PDF prints the page as it looks, on full-bleed dark pages */
+@media print{
+  @page{margin:0}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  html{scroll-behavior:auto}
+  .shell{display:block;max-width:none;padding:0}
+  nav.side,.cmt,.cmt-pop,dialog,.btn,.tablist,.cmp input,.cmp .knob{display:none !important}
+  main{max-width:none;padding:14mm 16mm;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+  section{padding-top:32px}
+  main > section[id]:empty{display:none}
+  .card,.diagram,figure,.phase,.qs li,.check,.log,.cmd,.verdict div,tr,img,video{break-inside:avoid}
+  h2,h3,figcaption,.group{break-after:avoid}
+  .tabs > [data-tab][hidden]{display:block !important}
+  .tabs > [data-tab]::before{content:attr(data-tab);display:block;margin:16px 0 8px;font:500 .78rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+  .code pre,.term pre,.tests details pre,.tablewrap{max-height:none;overflow:visible}
+  .code .l,.term pre,pre.diff .l{white-space:pre-wrap;word-break:break-all}
 }
 `;

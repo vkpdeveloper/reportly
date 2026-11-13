@@ -1,3 +1,4 @@
+import { listComments } from "@/lib/comments";
 import { getDocument } from "@/lib/documents";
 import { renderDocumentPage } from "@/lib/render";
 
@@ -21,7 +22,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const doc = await getDocument(id);
   if (!doc) return new Response(notFound, { status: 404, headers });
   const liveUrl = `${new URL(request.url).origin}/api/live/${encodeURIComponent(id)}`;
-  return new Response(renderDocumentPage(doc, { liveUrl }), {
+  const comments = await listComments(id);
+  return new Response(renderDocumentPage(doc, { liveUrl, comments }), {
     headers: { ...headers, "Content-Security-Policy": SANDBOX },
   });
 }

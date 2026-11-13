@@ -1,6 +1,14 @@
+import type { Comment } from "../comments";
 import type { DocumentStatus } from "../types";
 
-export type LiveState = { id: string; version: number; status: DocumentStatus; liveUrl: string };
+export type LiveState = {
+  id: string;
+  version: number;
+  status: DocumentStatus;
+  updatedAt: number;
+  liveUrl: string;
+  comments: Comment[];
+};
 
 /**
  * Inline client that polls the live endpoint and patches the page in place.
@@ -8,6 +16,8 @@ export type LiveState = { id: string; version: number; status: DocumentStatus; l
  * top-level markup before the runtime enhances it, so an updated section keeps
  * the nodes that did not change (a playing video, a drawn chart) and only new
  * nodes are inserted.
+ * It also keeps the status chip current and shares its state as report.state,
+ * which the comments script reads.
  */
 export function liveClientJs(state: LiveState): string {
   // "<" escaped so the JSON can never close the surrounding <script>.
@@ -25,6 +35,31 @@ const liveClientBody = String.raw`
     var MAX_BACKOFF_MS = 30000;
     var main = document.getElementById("top");
     var brand = document.querySelector("nav.side .brand");
+    var chip = document.querySelector("nav.side .status");
+    report.state = state;
+
+    function ago(ms) {
+      var s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+      if (s < 10) return "just now";
+      if (s < 60) return s + "s ago";
+      if (s < 3600) return Math.floor(s / 60) + " min ago";
+      if (s < 86400) return Math.floor(s / 3600) + " h ago";
+      return new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    }
+    // "Writing · 3 of 6" while sections are still pending, then "Done".
+    function renderStatus() {
+      if (!chip) return;
+      var all = main.querySelectorAll(":scope > section[id]");
+      var pending = main.querySelectorAll(":scope > section[id]:empty").length;
+      var label = state.status === "done" ? "Done" : "Writing";
+      if (state.status !== "done" && pending) label += " · " + (all.length - pending) + " of " + all.length;
+      chip.dataset.status = state.status;
+      chip.querySelector(".state").textContent = label;
+      chip.querySelector(".when").textContent = "Updated " + ago(state.updatedAt);
+    }
+    renderStatus();
+    // Only the text changes, every 15 s, so this costs nothing between ticks.
+    setInterval(renderStatus, 15000);
     var inert = document.implementation.createHTMLDocument("");
     // Original markup of each top-level node inside a section. Nodes whose
     // markup is unchanged in an update are kept as they are.
@@ -173,6 +208,8 @@ const liveClientBody = String.raw`
         if (hasHtml) {
           patch(sec, s.html);
           changed.push(sec);
+          // Marks the nav entry until the reader has seen it. A full resync is not news.
+          if (state.version > 0 && s.html) sec.dataset.fresh = "";
         }
         ordered.push(sec);
       });
@@ -234,6 +271,9 @@ const liveClientBody = String.raw`
           }
           state.version = resync ? 0 : data.version;
           state.status = data.status;
+          if (data.updatedAt) state.updatedAt = data.updatedAt;
+          renderStatus();
+          if (typeof data.comments === "number" && report.comments) report.comments.sync(data.comments);
           if (resync) delay = 0;
         }
       } catch (err) {

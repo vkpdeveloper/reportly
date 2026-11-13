@@ -2,7 +2,7 @@ import { requireApiUser } from "@/lib/api-auth";
 import { ApiError, documentUrl, handle, json, parse, readJsonObject } from "@/lib/api-response";
 import { applyOps, metaBodySchema } from "@/lib/document-ops";
 import { getDocument } from "@/lib/documents";
-import { db } from "@/lib/db";
+import { deleteDocumentWithMedia } from "@/lib/media";
 
 export const dynamic = "force-dynamic";
 
@@ -42,9 +42,7 @@ export function DELETE(req: Request, ctx: Ctx) {
   return handle(async () => {
     const userId = await requireApiUser(req);
     const { id } = await ctx.params;
-    // Sections and blocks go with it through ON DELETE CASCADE.
-    const result = await db().prepare("DELETE FROM documents WHERE id = ? AND user_id = ?").bind(id, userId).run();
-    if (result.meta.changes === 0) throw new ApiError(404, "document not found");
+    if (!(await deleteDocumentWithMedia(id, userId))) throw new ApiError(404, "document not found");
     return json({ deleted: true });
   });
 }

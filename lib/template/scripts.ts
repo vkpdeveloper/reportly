@@ -9,6 +9,8 @@ export const navJs = String.raw`
   // Side nav: one numbered entry per main > section[id]. The label is the
   // section's data-nav, else its h2. The current section is the last one whose
   // top passed 30% of the viewport, or the final one at the bottom of the page.
+  // Empty sections show as pending, and sections the live client marked with
+  // data-fresh get a dot until they have been on screen.
   (function () {
     var nav = document.querySelector("nav.side");
     var ol = nav && nav.querySelector("ol");
@@ -30,6 +32,8 @@ export const navJs = String.raw`
         var t = document.createElement("span");
         t.textContent = sec.dataset.nav || (h2 ? h2.textContent.trim() : sec.id);
         a.append(n, t);
+        if (!sec.firstChild) a.classList.add("pending");
+        if (sec.hasAttribute("data-fresh")) a.classList.add("fresh");
         var li = document.createElement("li");
         li.append(a);
         ol.append(li);
@@ -38,9 +42,21 @@ export const navJs = String.raw`
       current = -1;
       mark();
     }
+    function seen() {
+      sections.forEach(function (s, k) {
+        if (!s.hasAttribute("data-fresh")) return;
+        var r = s.getBoundingClientRect();
+        if (r.top < window.innerHeight && r.bottom > 0) {
+          s.removeAttribute("data-fresh");
+          links[k].classList.remove("fresh");
+        }
+      });
+    }
     function mark() {
       ticking = false;
       if (!sections.length) return;
+      // A hidden tab has not been read, so only clear dots while it is visible.
+      if (!document.hidden) seen();
       var probe = window.innerHeight * 0.3;
       var i = 0;
       sections.forEach(function (s, k) { if (s.getBoundingClientRect().top < probe) i = k; });
@@ -63,6 +79,7 @@ export const navJs = String.raw`
       if (!ticking) { ticking = true; requestAnimationFrame(mark); }
     }, { passive: true });
     window.addEventListener("resize", mark);
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) seen(); });
     report.nav = build;
     build();
   })();
@@ -190,7 +207,8 @@ export const diagramsJs = String.raw`
 
 export const widgetsJs = String.raw`
   // Sliders (drag anywhere, or arrow keys through the hidden range), copy
-  // buttons, patch copy and download, and hex swatches.
+  // buttons, patch copy and download, hex swatches, tabs, log times, the
+  // image lightbox, and Save PDF.
   (function () {
     // Elements already wired up; enhance() runs again on sections that change.
     var bound = new WeakSet();
@@ -290,6 +308,61 @@ export const widgetsJs = String.raw`
         });
       });
 
+      each(root, ".code .copy, .term .copy", function (btn) {
+        btn.addEventListener("click", function () {
+          var pre = btn.closest(".code, .term").querySelector("pre");
+          copyText(pre.textContent.replace(/\n?$/, "\n")).then(function () { flash(btn, "Copied"); }, function () {});
+        });
+      });
+
+      // .tabs > [data-tab="Label"] panels become a tab bar. Charts in a panel
+      // that was hidden get their size on the resize event sent after a switch.
+      each(root, ".tabs", function (box) {
+        var panels = Array.prototype.filter.call(box.children, function (el) { return el.hasAttribute("data-tab"); });
+        if (!panels.length) return;
+        var bar = document.createElement("div");
+        bar.className = "tablist";
+        bar.setAttribute("role", "tablist");
+        var buttons = panels.map(function (panel, i) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.setAttribute("role", "tab");
+          b.textContent = panel.dataset.tab;
+          b.addEventListener("click", function () { pick(i); });
+          b.addEventListener("keydown", function (e) {
+            if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+            var next = (i + (e.key === "ArrowRight" ? 1 : panels.length - 1)) % panels.length;
+            pick(next);
+            buttons[next].focus();
+          });
+          bar.append(b);
+          panel.setAttribute("role", "tabpanel");
+          return b;
+        });
+        function pick(k) {
+          panels.forEach(function (panel, i) {
+            panel.hidden = i !== k;
+            buttons[i].setAttribute("aria-selected", String(i === k));
+            buttons[i].tabIndex = i === k ? 0 : -1;
+          });
+          window.dispatchEvent(new Event("resize"));
+        }
+        box.prepend(bar);
+        pick(0);
+      });
+
+      // Log times are written in UTC; show them in the reader's own time.
+      each(root, ".log time[datetime]", function (el) {
+        var d = new Date(el.getAttribute("datetime"));
+        if (!isNaN(d)) el.textContent = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      });
+
+      each(root, ".gallery img, .diagram img", function (img) {
+        if (img.closest(".cmp")) return;
+        img.classList.add("zoomable");
+        img.addEventListener("click", function () { lightbox(img); });
+      });
+
       // class="hex": background is that colour, text black or white by WCAG contrast.
       root.querySelectorAll(".hex").forEach(function (el) {
         var m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec((el.dataset.color || el.textContent).trim());
@@ -300,6 +373,63 @@ export const widgetsJs = String.raw`
         el.style.color = (L + 0.05) / 0.05 > 1.05 / (L + 0.05) ? "#000000" : "#ffffff";
       });
     };
+    // One shared dialog. Inside a .gallery, arrows step through its images;
+    // clicking the image switches between fit-to-screen and full size.
+    var dlg = null;
+    var shown = { list: [], at: 0 };
+    function show(k) {
+      var list = shown.list;
+      shown.at = (k + list.length) % list.length;
+      var src = list[shown.at];
+      var big = dlg.querySelector(".stage img");
+      big.src = src.currentSrc || src.src;
+      big.alt = src.alt;
+      var fig = src.closest("figure");
+      var cap = fig && fig.querySelector("figcaption");
+      dlg.querySelector(".lb-cap").textContent = cap ? cap.textContent.trim() : src.alt;
+      dlg.classList.remove("full");
+      dlg.classList.toggle("single", list.length < 2);
+    }
+    function lightbox(img) {
+      if (!dlg) {
+        dlg = document.createElement("dialog");
+        dlg.className = "lightbox";
+        dlg.innerHTML = '<div class="stage"><img alt=""></div><p class="lb-cap"></p>' +
+          '<button type="button" class="btn lb-prev" aria-label="Previous image">&#8249;</button>' +
+          '<button type="button" class="btn lb-next" aria-label="Next image">&#8250;</button>' +
+          '<button type="button" class="btn lb-close">Close</button>';
+        document.body.append(dlg);
+        dlg.querySelector(".stage img").addEventListener("click", function () { dlg.classList.toggle("full"); });
+        dlg.querySelector(".lb-close").addEventListener("click", function () { dlg.close(); });
+        dlg.querySelector(".lb-prev").addEventListener("click", function () { show(shown.at - 1); });
+        dlg.querySelector(".lb-next").addEventListener("click", function () { show(shown.at + 1); });
+        dlg.addEventListener("click", function (e) { if (e.target === dlg || e.target.classList.contains("stage")) dlg.close(); });
+        dlg.addEventListener("keydown", function (e) {
+          if (e.key === "ArrowRight") show(shown.at + 1);
+          if (e.key === "ArrowLeft") show(shown.at - 1);
+        });
+      }
+      var group = img.closest(".gallery");
+      shown.list = group ? Array.prototype.slice.call(group.querySelectorAll("img")) : [img];
+      show(shown.list.indexOf(img));
+      if (!dlg.open) dlg.showModal();
+    }
+
+    // Save PDF prints the page; the print styles lay it out for paper. Closed
+    // patches and hidden tabs are opened for the print and put back after.
+    var reopened = [];
+    window.addEventListener("beforeprint", function () {
+      reopened = Array.prototype.filter.call(document.querySelectorAll("details:not([open])"), function (d) { d.open = true; return true; });
+      if (window.Chart) Object.values(Chart.instances).forEach(function (c) { c.resize(); });
+    });
+    window.addEventListener("afterprint", function () {
+      reopened.forEach(function (d) { d.open = false; });
+      reopened = [];
+      if (window.Chart) Object.values(Chart.instances).forEach(function (c) { c.resize(); });
+    });
+    var pdf = document.querySelector("nav.side .pdf");
+    if (pdf) pdf.addEventListener("click", function () { window.print(); });
+
     report.enhance(document);
   })();
 `;

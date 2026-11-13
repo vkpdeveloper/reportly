@@ -17,6 +17,9 @@
     "bindings": {
       "DB": {
         "description": "D1 database for accounts, tokens and documents. A new one is created for you, and migrations run on every deploy."
+      },
+      "MEDIA": {
+        "description": "R2 bucket for the images and videos agents upload into reports. R2 must be turned on for your account first (free up to 10 GB, but it asks for a payment method)."
       }
     }
   },
