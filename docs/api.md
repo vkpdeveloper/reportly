@@ -4,7 +4,7 @@ Base URL: your own deployment, for example `https://reportly.<your-subdomain>.wo
 
 All `/api/v1` calls need `Authorization: Bearer <token>`. Tokens look like `rpt_` + 40 chars and are created in the dashboard (Tokens page). A token only sees documents owned by its user. Anything owned by someone else returns `404`, same as a missing document.
 
-Responses are JSON. Errors: `{"error": "<message>"}` with status 400 (bad input, including unknown fields or an unknown section or block), 401 (missing or bad token), 404 (document missing or not yours), 409 (another writer changed the document at the same moment; nothing was written, retry), 413 (too large). Every response has `Cache-Control: no-store`.
+Responses are JSON. Errors: `{"error": "<message>"}` with status 400 (bad input, including unknown fields or an unknown section or block), 401 (missing or bad token), 404 (document missing or not yours), 409 (another writer changed the document at the same moment; nothing was written, retry), 413 (too large), 415 (file type not allowed), 429 (too many comments). Every response has `Cache-Control: no-store`.
 
 ## Model
 
@@ -20,7 +20,7 @@ A **section** has a `key` (its anchor id, `^[a-z0-9][a-z0-9-]{0,63}$`), an optio
 
 A **block** has a `key` (`^[a-z0-9][a-z0-9-]{0,63}$`) and `html`. Use blocks for things that arrive one at a time, such as recordings: add a block per video as each finishes, or replace a placeholder block when its video lands.
 
-Limits: 1 MB per html field, 200 sections per document, 500 blocks per section. Media is never uploaded to Reportly: put files on R2 (or any public host) and reference the URL.
+Limits: 1 MB per html field, 200 sections per document, 500 blocks per section. A section with no html and no blocks renders as pending ("Pending" on the page and in the nav). Media goes through the media endpoint below and is stored in the server's own R2 bucket.
 
 Every write bumps the document `version` by exactly 1 and updates `updated_at`. Open viewers pick up changes within a few seconds.
 
@@ -102,6 +102,24 @@ Returns `{ id, url, version }`.
 
 Returns `{ id, url, version, keys?: string[] }` where `keys` lists generated block keys in op order.
 
+### Upload media
+
+`POST /api/v1/docs/:id/media?name=rec-01.mp4` with the raw file as the body and a `Content-Length`. The type comes from the extension: png, jpg, jpeg, webp, gif, avif, svg, mp4, m4v, webm, mov, mp3, m4a, wav, ogg, pdf. Up to 100 MB. Returns `201`:
+
+```json
+{ "id": "q8w2e4r6t1y3u5i7o9p0", "name": "rec-01.mp4", "contentType": "video/mp4", "size": 1650000, "url": "https://.../m/q8w2e4r6t1y3u5i7o9p0/rec-01.mp4" }
+```
+
+Errors: 411 (no body or no `Content-Length`), 413 (over 100 MB), 415 (type not allowed). Files are deleted with their document. Uploading does not change the document; put the `url` into html yourself.
+
+### Comments
+
+`Comment`: `{ id, section, item, author, body, fromAgent, createdAt }`. `item` is the `data-item` key inside the section, or `null` for the section heading. `createdAt` is unix ms.
+
+- `GET /api/v1/docs/:id/comments?since=<ms>` → `{ "comments": [Comment] }`, oldest first, only those created after `since` (default 0).
+- `POST /api/v1/docs/:id/comments` with `{ "section", "item"?, "body", "author"? }` → `201 { "comment": Comment }`, posted as the agent (`fromAgent: true`, author defaults to `"Agent"`). `body` is 1 to 2000 characters. 404 if the section does not exist.
+- `DELETE /api/v1/docs/:id/comments/:commentId` → `{ "deleted": true }`.
+
 ## Public endpoints (no token)
 
 ### Viewer
@@ -112,8 +130,17 @@ Returns `{ id, url, version, keys?: string[] }` where `keys` lists generated blo
 
 `GET /api/live/:id?since=<version>` with `Access-Control-Allow-Origin: *`.
 
-- Unchanged (`version == since`): `{ "version": 7, "status": "live" }`.
-- Changed: `{ "version": 9, "status": "live", "title": "...", "sections": [{ "key", "nav", "rev", "html"? }] }`. `sections` is the full ordered list. `html` is the fully rendered inner html (section html + blocks) and is present only when `rev > since`. Keys missing from the list were deleted.
+- Unchanged (`version == since`): `{ "version": 7, "status": "live", "updatedAt": 1763042520000, "comments": 3 }`.
+- Changed: the same fields plus `"title"` and `"sections": [{ "key", "nav", "rev", "html"? }]`. `sections` is the full ordered list. `html` is the fully rendered inner html (section html + blocks) and is present only when `rev > since`; an empty string means the section is pending. Keys missing from the list were deleted.
+- `comments` is the document's comment count. The viewer refetches the comments when it changes.
 - Unknown id: 404.
 
 The viewer polls every 3 s while the tab is visible and `status` is `live`, pauses while hidden, and stops once `status` is `done`.
+
+### Reader comments
+
+`GET /api/live/:id/comments` → `{ "comments": [Comment] }`. `POST /api/live/:id/comments` with `{ "section", "item"?, "body", "author"? }` → `201 { "comment": Comment }` (`fromAgent: false`, author defaults to `"Reader"`). Both send `Access-Control-Allow-Origin: *`, because the sandboxed viewer has an opaque origin. Up to 500 comments per document, then 429.
+
+### Media files
+
+`GET /m/:mediaId/:name` (and `HEAD`) serves an uploaded file from R2 with `Content-Length`, `ETag`, `Accept-Ranges: bytes` and `206` range responses, so videos can seek. Headers: `Content-Security-Policy: sandbox`, `X-Content-Type-Options: nosniff`, `X-Robots-Tag: noindex, nofollow`. Files of deleted documents return 404.
