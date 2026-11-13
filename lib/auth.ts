@@ -4,8 +4,11 @@ import { cache } from "react";
 import { db } from "./db";
 import { newId, newSessionToken, sha256Hex } from "./ids";
 
-// 100000 is the highest PBKDF2 iteration count Cloudflare Workers allows.
-const ITERATIONS = 100_000;
+// The free Workers plan allows 10 ms of CPU per request, and 100000 rounds (the
+// most Workers allow) take about 45 ms, so sign-ups and logins would fail there.
+// 20000 takes about 6 ms. Each hash stores its own count, so changing this only
+// affects passwords set afterwards.
+const ITERATIONS = 20_000;
 const SESSION_COOKIE = "rp_session";
 const SESSION_DAYS = 30;
 export const MIN_PASSWORD_LENGTH = 8;
@@ -50,7 +53,7 @@ export function normalizeEmail(email: string) {
 }
 
 // Verified against when the email is unknown, so failed logins take the same time either way.
-const DUMMY_HASH = "pbkdf2$100000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+const DUMMY_HASH = `pbkdf2$${ITERATIONS}$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`;
 
 /** Returns the user only when the email exists and the password matches. */
 export async function checkCredentials(email: string, password: string): Promise<User | null> {

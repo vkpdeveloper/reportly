@@ -6,9 +6,15 @@ import { hashPassword, verifyPassword } from "./auth";
 describe("password hashing", () => {
   test("round trips and rejects a wrong password", async () => {
     const stored = await hashPassword("correct horse battery");
-    assert.match(stored, /^pbkdf2\$100000\$[A-Za-z0-9+/]{22}==\$[A-Za-z0-9+/]{43}=$/);
+    assert.match(stored, /^pbkdf2\$20000\$[A-Za-z0-9+/]{22}==\$[A-Za-z0-9+/]{43}=$/);
     assert.equal(await verifyPassword("correct horse battery", stored), true);
     assert.equal(await verifyPassword("correct horse batterY", stored), false);
+  });
+
+  test("still verifies hashes made with the old 100000 rounds", async () => {
+    const old = "pbkdf2$100000$BwcHBwcHBwcHBwcHBwcHBw==$KyshAn7k2OUA7JebaqDm0TB2BxDXkLSq20Je4aIQWGg=";
+    assert.equal(await verifyPassword("old password", old), true);
+    assert.equal(await verifyPassword("new password", old), false);
   });
 
   test("salts every hash", async () => {
