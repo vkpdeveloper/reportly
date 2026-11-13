@@ -3,7 +3,11 @@
 // Zero dependencies, Node 18+ or Bun. Reads REPORTLY_URL and REPORTLY_TOKEN.
 // The API contract lives in docs/api.md of the Reportly repo.
 
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import * as blocks from "./blocks.mjs";
 
 const HELP = `reportly: push live documents to Reportly
 
@@ -30,6 +34,41 @@ Sections and blocks (html from --file FILE, --file - for stdin, or --html STR)
   ops ID --file ops.json                       Apply a batch of ops as one version.
                                                The file holds {"ops": [...]} or [...].
 
+Live progress
+  plan ID KEY=LABEL [KEY=LABEL ...]            Add the sections you plan to write. They
+                                               show as pending in the nav until filled.
+  check ID SECTION ITEM [--text T] [--state todo|doing|done|blocked] [--note N]
+                                               Create or update one checklist item. Later
+                                               calls can pass only --state.
+  log ID SECTION TEXT [--state ok|mid|no]      Append a timestamped activity log entry.
+
+Media (stored on your Reportly server; never use another host)
+  upload ID FILE                               Upload a file and print its url. Images,
+                                               video, audio and PDF, up to 100 MB.
+  image ID SECTION [KEY] --file F [--file F ...] [--title T] [--sub S] [--alt A ...]
+                                               Upload and add as a figure, or a gallery
+                                               for several files. Click to zoom.
+  video ID SECTION [KEY] --file F [--poster P] [--title T] [--sub S] [--alt A]
+                                               Upload and add a video. Size and poster
+                                               come from ffprobe and ffmpeg when present.
+
+Blocks from data (each adds a block; --print writes the html to stdout instead)
+  table ID SECTION [KEY] --csv F | --json F [--title T] [--sub S]
+  chart ID SECTION [KEY] --csv F --title T [--type line|bar|hbar|stacked|doughnut|scatter]
+        [--sub S] [--x LABEL] [--y LABEL] [--target N] [--colors calm,no,...]
+                                               First CSV column is the labels (x for
+                                               scatter), every other column a series.
+  diff ID SECTION [KEY] --file x.patch [--name N]   Unified diff, one patch per file.
+  term ID SECTION [KEY] --file out.txt [--cmd C] [--lines N]
+                                               Terminal output, ANSI colours kept.
+  code ID SECTION [KEY] --src PATH[:FROM[-TO]] [--mark 12-14] [--title T] [--sub S]
+  tests ID SECTION [KEY] --junit F | --json F [--title T] [--sub S]
+
+Comments (readers comment on sections and checklist items)
+  comments ID [--since MS]                     List comments, oldest first.
+  comment ID SECTION [ITEM] --text T           Answer as the agent.
+  rm-comment ID COMMENT_ID
+
 Options
   --json      Print the raw API response as JSON.
   --file -    Read html (or ops json) from stdin.
@@ -40,15 +79,21 @@ Environment
   REPORTLY_TOKEN   API token (rpt_...), created on the Tokens page of the dashboard.
 `;
 
-const VALUE_FLAGS = new Set(["title", "project", "hero", "q", "status", "file", "html", "nav", "before", "after"]);
-const BOOL_FLAGS = new Set(["json", "help"]);
+const VALUE_FLAGS = new Set([
+  ...["title", "project", "hero", "q", "status", "file", "html", "nav", "before", "after"],
+  ...["text", "state", "note", "sub", "alt", "poster", "csv", "type", "x", "y", "target", "colors"],
+  ...["name", "cmd", "lines", "src", "mark", "junit", "since"],
+]);
+// These may be given more than once; every value is kept in flags.all[name].
+const REPEAT_FLAGS = new Set(["file", "alt"]);
+const BOOL_FLAGS = new Set(["json", "help", "print"]);
 
 class UsageError extends Error {}
 class ApiError extends Error {}
 
 function parseArgs(argv) {
   const positional = [];
-  const flags = {};
+  const flags = { all: {} };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (!arg.startsWith("--") || arg === "--") {
@@ -62,7 +107,9 @@ function parseArgs(argv) {
     } else if (VALUE_FLAGS.has(name)) {
       const value = eq === -1 ? argv[++i] : arg.slice(eq + 1);
       if (value === undefined) throw new UsageError(`--${name} needs a value`);
+      if (flags[name] !== undefined && !REPEAT_FLAGS.has(name)) throw new UsageError(`--${name} was given twice`);
       flags[name] = value;
+      (flags.all[name] ??= []).push(value);
     } else {
       throw new UsageError(`unknown option --${name}`);
     }
@@ -119,9 +166,11 @@ const seg = encodeURIComponent;
 // nothing was written, so the same request is always safe to send again.
 const CONFLICT_RETRIES = 4;
 
+/** `body` is sent as JSON, or as raw bytes when it is a Buffer (uploads). */
 async function api(method, path, body) {
   const { base, token } = config();
   const url = `${base}/api/v1${path}`;
+  const raw = Buffer.isBuffer(body);
   let res;
   for (let attempt = 0; ; attempt++) {
     try {
@@ -129,9 +178,9 @@ async function api(method, path, body) {
         method,
         headers: {
           Authorization: `Bearer ${token}`,
-          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+          ...(body === undefined ? {} : { "Content-Type": raw ? "application/octet-stream" : "application/json" }),
         },
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
       });
     } catch (err) {
       throw new ApiError(`cannot reach ${base}: ${err.cause?.message ?? err.message}`);
@@ -179,6 +228,81 @@ function printDoc(doc) {
 
 function printWrite(res) {
   console.log(`version ${res.version}  ${res.url}`);
+}
+
+function printComments({ comments }) {
+  if (!comments.length) return console.log("no comments");
+  for (const c of comments) {
+    const where = c.item ? `${c.section}/${c.item}` : c.section;
+    const who = c.fromAgent ? `${c.author} (agent)` : c.author;
+    console.log(`${date(c.createdAt)}  ${where}  ${who}: ${c.body.replace(/\n/g, "\n    ")}  [${c.id}]`);
+  }
+}
+
+/** Create or replace block KEY, or append one when KEY is undefined. Prints the key. */
+async function pushBlock(id, section, key, html, flags, out) {
+  const base = `/docs/${seg(id)}/sections/${seg(section)}/blocks`;
+  if (key !== undefined) {
+    const res = await api("PUT", `${base}/${seg(key)}`, defined({ html, before: flags.before, after: flags.after }));
+    return out(res, () => console.log(key));
+  }
+  if (flags.before === undefined && flags.after === undefined) {
+    return out(await api("POST", base, { html }), (r) => console.log(r.key));
+  }
+  // The append endpoint takes no position, so a positioned keyless block goes through ops.
+  const op = defined({ op: "block", section, html, before: flags.before, after: flags.after });
+  const res = await api("POST", `/docs/${seg(id)}/ops`, { ops: [op] });
+  return out(res, (r) => console.log(r.keys?.[0] ?? ""));
+}
+
+async function upload(id, path) {
+  let bytes;
+  try {
+    if (statSync(path).size > 100 * 1024 * 1024) throw new UsageError(`${path} is larger than 100 MB`);
+    bytes = readFileSync(path);
+  } catch (err) {
+    if (err instanceof UsageError) throw err;
+    throw new UsageError(`cannot read ${path}: ${err.code === "ENOENT" ? "no such file" : err.message}`);
+  }
+  const file = await api("POST", `/docs/${seg(id)}/media?name=${encodeURIComponent(basename(path))}`, bytes);
+  return { file, bytes };
+}
+
+function readJson(path) {
+  try {
+    return JSON.parse(readFile(path));
+  } catch (err) {
+    if (err instanceof UsageError) throw err;
+    throw new UsageError(`${path} is not valid JSON: ${err.message}`);
+  }
+}
+
+/** Runs a tool such as ffprobe if it is installed. Returns its stdout, or null. */
+function tool(cmd, args) {
+  const res = spawnSync(cmd, args, { encoding: "utf8" });
+  return res.status === 0 ? res.stdout.trim() : null;
+}
+
+const altFromName = (path) => basename(path).replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
+
+// Data helpers share one shape: ID SECTION [KEY], and --print to skip pushing.
+async function dataBlock(command, args, flags, out, build) {
+  const usage = `${command} ID SECTION [KEY] ...`;
+  if (!flags.print && (args.length < 2 || args.length > 3)) throw new UsageError(`usage: reportly ${usage}`);
+  const [id, section, key] = args;
+  const html = build({ id, section, key });
+  if (flags.print) return process.stdout.write(`${html}\n`);
+  return pushBlock(id, section, key, html, flags, out);
+}
+
+/** Wraps builder errors (bad csv, unknown chart type) as usage errors. */
+function usage(fn) {
+  try {
+    return fn();
+  } catch (err) {
+    if (err instanceof UsageError || err instanceof ApiError) throw err;
+    throw new UsageError(err.message);
+  }
 }
 
 async function run(argv) {
@@ -244,17 +368,155 @@ async function run(argv) {
       }
       const [id, section, key] = args;
       const html = requireHtml(flags);
-      const base = `/docs/${seg(id)}/sections/${seg(section)}/blocks`;
       if (key !== undefined) {
+        const base = `/docs/${seg(id)}/sections/${seg(section)}/blocks`;
         return out(await api("PUT", `${base}/${seg(key)}`, defined({ html, before: flags.before, after: flags.after })), printWrite);
       }
-      if (flags.before === undefined && flags.after === undefined) {
-        return out(await api("POST", base, { html }), (r) => console.log(r.key));
+      return pushBlock(id, section, key, html, flags, out);
+    }
+    case "plan": {
+      const [id, ...entries] = args;
+      if (!id || !entries.length) throw new UsageError("usage: reportly plan ID KEY=LABEL [KEY=LABEL ...]");
+      const ops = entries.map((entry) => {
+        const eq = entry.indexOf("=");
+        if (eq < 1) throw new UsageError(`"${entry}" should look like risks="Three risks remain"`);
+        return { op: "section", key: entry.slice(0, eq), nav: entry.slice(eq + 1) };
+      });
+      return out(await api("POST", `/docs/${seg(id)}/ops`, { ops }), printWrite);
+    }
+    case "check": {
+      const [id, section, item] = need(args, 3, "check ID SECTION ITEM [--text T] [--state todo|doing|done|blocked] [--note N]");
+      let { text, note, state } = flags;
+      if (text === undefined || (note === undefined && state === undefined)) {
+        // Fill what was left out from the item as it is now.
+        const doc = await api("GET", `/docs/${seg(id)}`);
+        const block = doc.sections.find((s) => s.key === section)?.blocks.find((b) => b.key === item);
+        const now = block ? blocks.readCheck(block.html) : {};
+        text ??= now.text;
+        if (flags.note === undefined) note = now.note;
+        state ??= now.state;
       }
-      // The append endpoint takes no position, so a positioned keyless block goes through ops.
-      const op = defined({ op: "block", section, html, before: flags.before, after: flags.after });
-      const res = await api("POST", `/docs/${seg(id)}/ops`, { ops: [op] });
-      return out(res, (r) => console.log(r.keys?.[0] ?? ""));
+      if (text === undefined) throw new UsageError(`item "${item}" does not exist yet, so pass --text`);
+      const html = usage(() => blocks.checkHtml({ item, text, note: note || undefined, state }));
+      const res = await api("PUT", `/docs/${seg(id)}/sections/${seg(section)}/blocks/${seg(item)}`, defined({ html, before: flags.before, after: flags.after }));
+      return out(res, printWrite);
+    }
+    case "log": {
+      const [id, section, ...words] = args;
+      if (!id || !section || !words.length) throw new UsageError("usage: reportly log ID SECTION TEXT [--state ok|mid|no]");
+      const html = usage(() => blocks.logHtml({ text: words.join(" "), state: flags.state }));
+      return pushBlock(id, section, undefined, html, flags, out);
+    }
+    case "upload": {
+      const [id, path] = need(args, 2, "upload ID FILE");
+      const { file } = await upload(id, path);
+      return out(file, (r) => console.log(r.url));
+    }
+    case "image": {
+      if (args.length < 2 || args.length > 3) throw new UsageError("usage: reportly image ID SECTION [KEY] --file F [--file F ...] [--title T] [--sub S] [--alt A ...]");
+      const [id, section, key] = args;
+      const files = flags.all.file ?? [];
+      if (!files.length) throw new UsageError("image needs --file (once per image)");
+      const alts = flags.all.alt ?? [];
+      const images = [];
+      for (const [i, path] of files.entries()) {
+        const { file, bytes } = await upload(id, path);
+        const size = blocks.imageSize(bytes);
+        const alt = alts[i] ?? (files.length === 1 ? flags.title : undefined) ?? altFromName(path);
+        images.push({ url: file.url, alt, ...(size ?? {}) });
+      }
+      const html = blocks.imagesHtml(images, { title: flags.title, sub: flags.sub });
+      if (flags.print) return process.stdout.write(`${html}\n`);
+      return pushBlock(id, section, key, html, flags, out);
+    }
+    case "video": {
+      if (args.length < 2 || args.length > 3) throw new UsageError("usage: reportly video ID SECTION [KEY] --file F [--poster P] [--title T] [--sub S] [--alt A]");
+      const [id, section, key] = args;
+      if (!flags.file) throw new UsageError("video needs --file");
+      const probed = tool("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", flags.file]);
+      const [width, height] = (probed ?? "").split("x").map(Number);
+      let poster = flags.poster;
+      let dir;
+      if (!poster) {
+        dir = mkdtempSync(join(tmpdir(), "reportly-"));
+        const frame = join(dir, `${basename(flags.file).replace(/\.[^.]+$/, "")}-poster.jpg`);
+        if (tool("ffmpeg", ["-v", "error", "-y", "-ss", "0.5", "-i", flags.file, "-frames:v", "1", "-q:v", "3", frame]) !== null) poster = frame;
+      }
+      try {
+        const posterUrl = poster ? (await upload(id, poster)).file.url : undefined;
+        const { file: video } = await upload(id, flags.file);
+        const html = blocks.videoHtml({ url: video.url, poster: posterUrl, width, height, title: flags.title, sub: flags.sub, alt: flags.alt });
+        if (flags.print) return process.stdout.write(`${html}\n`);
+        return await pushBlock(id, section, key, html, flags, out);
+      } finally {
+        if (dir) rmSync(dir, { recursive: true, force: true });
+      }
+    }
+    case "table": {
+      return dataBlock(command, args, flags, out, () => {
+        if ((flags.csv === undefined) === (flags.json === undefined)) throw new UsageError("table needs --csv FILE or --json FILE");
+        const rows = usage(() => (flags.csv !== undefined ? blocks.parseCsv(readFile(flags.csv)) : blocks.jsonRows(readJson(flags.json))));
+        return usage(() => blocks.tableHtml(rows, { title: flags.title, sub: flags.sub }));
+      });
+    }
+    case "chart": {
+      return dataBlock(command, args, flags, out, ({ section, key }) => {
+        if (flags.csv === undefined) throw new UsageError("chart needs --csv FILE");
+        const rows = usage(() => blocks.parseCsv(readFile(flags.csv)));
+        // Canvas ids must be unique in the whole document, so they start with the section key.
+        const canvas = `${section ?? "chart"}-${key ?? `chart-${Math.random().toString(36).slice(2, 8)}`}`;
+        const colors = flags.colors ? flags.colors.split(",").map((c) => c.trim()) : [];
+        const target = flags.target === undefined ? undefined : Number(flags.target);
+        if (target !== undefined && !Number.isFinite(target)) throw new UsageError("--target must be a number");
+        return usage(() => blocks.chartHtml(rows, { id: canvas, type: flags.type, title: flags.title, sub: flags.sub, x: flags.x, y: flags.y, target, colors }));
+      });
+    }
+    case "diff": {
+      return dataBlock(command, args, flags, out, () => {
+        if (flags.file === undefined) throw new UsageError("diff needs --file x.patch (or --file - for stdin, e.g. git diff | reportly diff ...)");
+        return usage(() => blocks.diffHtml(readFile(flags.file), { name: flags.name }));
+      });
+    }
+    case "term": {
+      return dataBlock(command, args, flags, out, () => {
+        if (flags.file === undefined) throw new UsageError("term needs --file out.txt (or --file - for stdin)");
+        const lines = flags.lines === undefined ? undefined : Number(flags.lines);
+        if (lines !== undefined && !(lines > 0)) throw new UsageError("--lines must be a positive number");
+        return blocks.termHtml(readFile(flags.file), { cmd: flags.cmd, lines });
+      });
+    }
+    case "code": {
+      return dataBlock(command, args, flags, out, () => {
+        if (flags.src === undefined) throw new UsageError("code needs --src PATH[:FROM[-TO]]");
+        const spec = usage(() => blocks.parseCodeSpec(flags.src));
+        // Label with the repo-relative path, so absolute home paths never reach the page.
+        const rel = relative(process.cwd(), resolve(spec.path));
+        const label = rel.startsWith("..") || isAbsolute(rel) ? basename(spec.path) : rel;
+        return usage(() => blocks.codeHtml(readFile(spec.path), { ...spec, path: label, mark: flags.mark, title: flags.title, sub: flags.sub }));
+      });
+    }
+    case "tests": {
+      return dataBlock(command, args, flags, out, () => {
+        if ((flags.junit === undefined) === (flags.json === undefined)) throw new UsageError("tests needs --junit FILE or --json FILE");
+        const cases = usage(() => (flags.junit !== undefined ? blocks.parseJunit(readFile(flags.junit)) : blocks.jsonTests(readJson(flags.json))));
+        return blocks.testsHtml(cases, { title: flags.title, sub: flags.sub });
+      });
+    }
+    case "comments": {
+      const [id] = need(args, 1, "comments ID [--since MS]");
+      const query = flags.since === undefined ? "" : `?since=${encodeURIComponent(flags.since)}`;
+      return out(await api("GET", `/docs/${seg(id)}/comments${query}`), printComments);
+    }
+    case "comment": {
+      if (args.length < 2 || args.length > 3) throw new UsageError("usage: reportly comment ID SECTION [ITEM] --text T");
+      const [id, section, item] = args;
+      if (!flags.text) throw new UsageError("comment needs --text");
+      const res = await api("POST", `/docs/${seg(id)}/comments`, defined({ section, item, body: flags.text }));
+      return out(res, (r) => console.log(r.comment.id));
+    }
+    case "rm-comment": {
+      const [id, commentId] = need(args, 2, "rm-comment ID COMMENT_ID");
+      return out(await api("DELETE", `/docs/${seg(id)}/comments/${seg(commentId)}`), () => console.log(`deleted ${commentId}`));
     }
     case "rm-block": {
       const [id, section, key] = need(args, 3, "rm-block ID SECTION KEY");
