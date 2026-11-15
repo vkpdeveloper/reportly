@@ -156,9 +156,10 @@ bun run deploy                              # build, apply migrations, deploy th
 
 The `database_id` committed here belongs to the original deployment. Your account cannot use it, so replace it with your own.
 
-Local development:
+Local development requires Node.js 22.12+ and Bun 1.4.4 (the version pinned in `package.json`).
 
 ```sh
+bun install --frozen-lockfile
 bun run db:migrate:local
 bun run dev
 ```
