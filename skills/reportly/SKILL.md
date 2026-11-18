@@ -1,6 +1,6 @@
 ---
 name: reportly
-description: Use whenever the user asks for a report, findings, a proposal, research, a comparison, a plan, a summary, a UI/UX review, screen recordings, design ideas, or anything else to be published or shared as a document. Also use when the user names Reportly, HTML communication (or "stable/streaming communication"), or a live report. Creates a live Reportly document first, sends the link right away, then pushes each section, finding, or video as soon as it exists while the reader watches it update.
+description: "Use it only if the user asks for 'streaming communication', 'html communication' or to use Reportly. Never use it just because you wanted it."
 ---
 
 # Reportly
