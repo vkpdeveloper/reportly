@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts >/dev/null && next build",
     "lint": "eslint",
-    "typecheck": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts >/dev/null && tsc --noEmit",
+    "typecheck": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts >/dev/null && next typegen && tsc --noEmit",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && wrangler d1 migrations apply DB --remote && opennextjs-cloudflare deploy",
